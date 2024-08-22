@@ -37,7 +37,7 @@
   "dependencies": {},
   "devDependencies": {
     "@lavamoat/preinstall-always-fail": "2.0.0",
-    "@openzeppelin/contracts": "4.9.2",
+    "@openzeppelin/contracts": "4.9.6",
     "@types/node": "^20.1.2",
     "@wagmi/cli": "^1.0.1",
     "@zoralabs/mints-contracts": "*",
