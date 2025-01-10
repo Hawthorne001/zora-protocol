@@ -1,55 +1,45 @@
-import {
-  Abi,
-  Account,
-  Address,
-  Chain,
-  ContractFunctionArgs,
-  ContractFunctionName,
-  PublicClient as BasePublicClient,
-  SimulateContractParameters,
-  Transport,
-  createPublicClient,
-  http,
-} from "viem";
-import {
-  IHttpClient,
-  httpClient as defaultHttpClient,
-} from "./apis/http-api-base";
+import { Account, Address, PublicClient as BasePublicClient } from "viem";
+import { SimulateContractParametersWithAccount } from "./types";
 
-export const makeSimulateContractParamaters = <
-  const abi extends Abi | readonly unknown[],
-  functionName extends ContractFunctionName<abi, "nonpayable" | "payable">,
-  args extends ContractFunctionArgs<
-    abi,
-    "nonpayable" | "payable",
-    functionName
-  >,
-  chainOverride extends Chain | undefined,
-  accountOverride extends Account | Address | undefined = undefined,
->(
-  args: SimulateContractParameters<
-    abi,
-    functionName,
-    args,
-    Chain,
-    chainOverride,
-    accountOverride
-  >,
+export const makeContractParameters = (
+  args: SimulateContractParametersWithAccount,
 ) => args;
 
-export type PublicClient = BasePublicClient<Transport, Chain>;
+export type PublicClient = Pick<
+  BasePublicClient,
+  "readContract" | "getBlock" | "simulateContract" | "getBalance"
+>;
 
 export type ClientConfig = {
-  chain: Chain;
-  publicClient?: PublicClient;
-  httpClient?: IHttpClient;
+  /** The chain that the client is to run on. */
+  chainId: number;
+  /** Optional public client for the chain.  If not provide, it is created. */
+  publicClient: PublicClient;
 };
 
-export function setupClient({ chain, httpClient, publicClient }: ClientConfig) {
+export function setupClient({ chainId, publicClient }: ClientConfig) {
   return {
-    chain,
-    httpClient: httpClient || defaultHttpClient,
-    publicClient:
-      publicClient || createPublicClient({ chain, transport: http() }),
+    chainId,
+    publicClient,
   };
 }
+
+export function mintRecipientOrAccount({
+  mintRecipient,
+  minterAccount,
+}: {
+  mintRecipient?: Address;
+  minterAccount: Address | Account;
+}): Address {
+  return (
+    mintRecipient ||
+    (typeof minterAccount === "string" ? minterAccount : minterAccount.address)
+  );
+}
+
+export type Concrete<Type> = {
+  [Property in keyof Type]-?: Type[Property];
+};
+
+export const addressOrAccountAddress = (address: Address | Account) =>
+  typeof address === "string" ? address : address.address;

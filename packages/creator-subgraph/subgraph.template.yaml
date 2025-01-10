@@ -194,6 +194,33 @@ dataSources:
         - event: MintComment(indexed address,indexed address,indexed uint256,uint256,string)
           handler: handleMintComment
 {{/mintsManager}}
+{{#zoraSparks}}
+  - name: ZoraSparks
+    kind: ethereum/contract
+    network: {{network}}
+    source:
+      abi: ZoraSparks1155
+      address: "{{address}}"
+      startBlock: {{startBlock}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      entities:
+        - SparkToken
+        - SparkAccountBalance
+      language: wasm/assemblyscript
+      file: ./src/SparksMappings/factoryMappings.ts
+      abis:
+        - name: ZoraSparks1155
+          file: ./abis/ZoraSparks1155.json  
+      eventHandlers:
+        - event: TokenCreated(indexed uint256,indexed uint256,indexed address)
+          handler: handleTokenCreated
+        - event: TransferSingle(indexed address,indexed address,indexed address,uint256,uint256)
+          handler: handleTransferSingle
+        - event: TransferBatch(indexed address,indexed address,indexed address,uint256[],uint256[])
+          handler: handleTransferBatch
+{{/zoraSparks}}
 {{#erc20Minter}}
   - name: ERC20Minter{{version}}
     kind: ethereum/contract
@@ -222,6 +249,88 @@ dataSources:
         - event:  ERC20RewardsDeposit(indexed address,indexed address,indexed address,address,address,address,uint256,uint256,uint256,uint256,uint256)
           handler: handleERC20RewardsDeposit
 {{/erc20Minter}}
+{{#zoraTimedSaleStrategy}}
+  - name: ZoraTimedSaleStrategy{{version}}
+    kind: ethereum/contract
+    network: {{network}}
+    source:
+      abi: ZoraTimedSaleStrategy
+      address: "{{address}}"
+      startBlock: {{startBlock}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      entities:
+        - SalesConfigZoraTimedSaleStrategy
+        - MintComment
+        - ZoraTimedSaleStrategyRewardsDeposit
+      language: wasm/assemblyscript
+      file: ./src/ERC1155Mappings/templates/ZoraTimedSaleStrategyMappings.ts
+      abis:
+        - name: ZoraTimedSaleStrategy 
+          file: ./abis/ZoraTimedSaleStrategy.json
+      eventHandlers:
+        - event: SaleSet(indexed address,indexed uint256,(uint64,uint64,string,string),address,address,uint256)
+          handler: handleZoraTimedSaleStrategySaleSet
+        - event: MintComment(indexed address,indexed address,indexed uint256,uint256,string)
+          handler: handleMintComment
+        - event: ZoraTimedSaleStrategyRewards(indexed address,indexed uint256,address,uint256,address,uint256,address,uint256,address,uint256,address,uint256)
+          handler: handleZoraTimedSaleStrategyRewardsDeposit
+        - event: MarketLaunched(indexed address,indexed uint256,address,address)
+          handler: handleMarketLaunched
+        - event: SaleSetV2(indexed address,indexed uint256,(uint64,uint64,uint64,bool,uint256,address,address,string,string),uint256)
+          handler: handleZoraTimedSaleStrategySaleSetV2
+{{/zoraTimedSaleStrategy}}
+{{#comments}}
+  - name: Comments
+    kind: ethereum/contract
+    network: {{network}}
+    source:
+      abi: Comments
+      address: "{{address}}"
+      startBlock: {{startBlock}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      entities:
+        - Comment
+      language: wasm/assemblyscript
+      file: ./src/commentsMappings/templates/commentHandlers.ts
+      abis:
+        - name: Comments
+          file: ./abis/Comments.json
+      eventHandlers:
+        - event: Commented(indexed bytes32,(address,address,uint256,bytes32),bytes32,(address,address,uint256,bytes32),uint256,string,uint256,address)
+          handler: handleCommented
+        - event: SparkedComment(indexed bytes32,(address,address,uint256,bytes32),uint256,address,uint256,address)
+          handler: handleSparkedComment
+        - event: BackfilledComment(indexed bytes32,(address,address,uint256,bytes32),string,uint256,bytes32)
+          handler: handleBackfilledComment
+{{/comments}}
+{{#cointagsFactory}}
+  - kind: ethereum/contract
+    name: CointagFactory
+    network: {{network}}
+    source:
+      address: "{{address}}"
+      abi: CointagFactory
+      startBlock: {{startBlock}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Cointag
+      abis:
+        - name: CointagFactory
+          file: ./abis/CointagFactory.json
+        - name: Cointag
+          file: ./abis/Cointag.json
+      file: ./src/CointagMappings/cointagMappings.ts
+      eventHandlers:
+        - event: SetupNewCointag(indexed address,indexed address,indexed address,address,uint256,bytes)
+          handler: handleSetupNewCointag
+{{/cointagsFactory}}
 templates:
   - name: MetadataInfo
     kind: file/ipfs

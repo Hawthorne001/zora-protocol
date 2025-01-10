@@ -8,19 +8,31 @@ jobs:
   build_js:
     strategy:
       fail-fast: true
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      VITE_CONDUIT_KEY: ${{ secrets.CONDUIT_KEY }}
+      VITE_ALCHEMY_KEY: ${{ secrets.ALCHEMY_KEY }}
 
     name: Build js package
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache turbo build setup
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
       - name: Install node deps and founry
         uses: ./.github/actions/setup_deps
 
       - name: Build js package
         run: |
-          yarn turbo run build
+          pnpm turbo run build
 
       - name: Test js package
         run: |
-          yarn turbo run test:js
+          pnpm turbo run test:js

@@ -2,180 +2,39 @@ import {
   zoraCreator1155FactoryImplABI,
   zoraCreator1155FactoryImplAddress,
   zoraCreator1155ImplABI,
-  zoraCreatorFixedPriceSaleStrategyABI,
 } from "@zoralabs/protocol-deployments";
 import type {
   Account,
   Address,
   Hex,
-  SimulateContractParameters,
+  PublicClient,
   TransactionReceipt,
 } from "viem";
-import { decodeEventLog, encodeFunctionData, zeroAddress } from "viem";
-import { OPEN_EDITION_MINT_SIZE } from "../constants";
+import { decodeEventLog } from "viem";
+import { makeContractParameters } from "src/utils";
 import {
-  makeSimulateContractParamaters,
-  ClientConfig,
-  PublicClient,
-  setupClient,
-} from "src/utils";
-
-// Sales end forever amount (uint64 max)
-const SALE_END_FOREVER = 18446744073709551615n;
+  getDeterministicContractAddress,
+  getNewContractMintFee,
+  new1155ContractVersion,
+} from "./contract-setup";
+import {
+  CreateNew1155ContractAndTokenReturn,
+  CreateNew1155ContractParams,
+  CreateNew1155ParamsBase,
+  CreateNew1155TokenParams,
+  CreateNew1155TokenReturn,
+  NewContractParams,
+} from "./types";
+import { constructCreate1155TokenCalls } from "./token-setup";
+import { makeOnchainPrepareMintFromCreate } from "./mint-from-create";
+import { IContractGetter } from "./contract-getter";
 
 // Default royalty bps
 const ROYALTY_BPS_DEFAULT = 1000;
 
-type SalesConfigParamsType = {
-  // defaults to 0
-  pricePerToken?: bigint;
-  // defaults to 0, in seconds
-  saleStart?: bigint;
-  // defaults to forever, in seconds
-  saleEnd?: bigint;
-  // max tokens that can be minted per address
-  maxTokensPerAddress?: bigint;
-  fundsRecipient?: Address;
-};
-
-export const DEFAULT_SALE_SETTINGS = {
-  fundsRecipient: zeroAddress,
-  // Free Mint
-  pricePerToken: 0n,
-  // Sale start time – defaults to beginning of unix time
-  saleStart: 0n,
-  // This is the end of uint64, plenty of time
-  saleEnd: SALE_END_FOREVER,
-  // 0 Here means no limit
-  maxTokensPerAddress: 0n,
-};
-
-// Hardcode the permission bit for the minter
-const PERMISSION_BIT_MINTER = 4n;
-
-type ContractType =
-  | {
-      name: string;
-      uri: string;
-      defaultAdmin?: Address;
-    }
-  | Address;
-
-type RoyaltySettingsType = {
-  royaltyBPS: number;
-  royaltyRecipient: Address;
-};
-
-export function create1155TokenSetupArgs({
-  nextTokenId,
-  // How many NFTs upon initialization to mint to the creator
-  mintToCreatorCount,
-  tokenMetadataURI,
-  // Fixed price minter address – required minter
-  fixedPriceMinterAddress,
-  // Address to use as the create referral, optional.
-  createReferral,
-  // Optional max supply of the token. Default unlimited
-  maxSupply,
-  // wallet sending the transaction
-  account,
-  salesConfig,
-  royaltySettings,
-}: {
-  maxSupply?: bigint | number;
-  createReferral?: Address;
-  nextTokenId: bigint;
-  mintToCreatorCount: bigint | number;
-  // wallet sending the transaction
-  account: Address;
-  tokenMetadataURI: string;
-  fixedPriceMinterAddress: Address;
-  salesConfig: SalesConfigParamsType;
-  royaltySettings?: RoyaltySettingsType;
-}) {
-  if (!maxSupply) {
-    maxSupply = OPEN_EDITION_MINT_SIZE;
-  }
-  maxSupply = BigInt(maxSupply);
-  mintToCreatorCount = BigInt(mintToCreatorCount);
-
-  const salesConfigWithDefaults = {
-    // Set static sales default.
-    ...DEFAULT_SALE_SETTINGS,
-    // Override with user settings.
-    ...salesConfig,
-  };
-
-  const setupActions = [
-    encodeFunctionData({
-      abi: zoraCreator1155ImplABI,
-      functionName: "assumeLastTokenIdMatches",
-      args: [nextTokenId - 1n],
-    }),
-    createReferral
-      ? encodeFunctionData({
-          abi: zoraCreator1155ImplABI,
-          functionName: "setupNewTokenWithCreateReferral",
-          args: [tokenMetadataURI, maxSupply, createReferral],
-        })
-      : encodeFunctionData({
-          abi: zoraCreator1155ImplABI,
-          functionName: "setupNewToken",
-          args: [tokenMetadataURI, maxSupply],
-        }),
-    encodeFunctionData({
-      abi: zoraCreator1155ImplABI,
-      functionName: "addPermission",
-      args: [0n, fixedPriceMinterAddress, PERMISSION_BIT_MINTER],
-    }),
-    encodeFunctionData({
-      abi: zoraCreator1155ImplABI,
-      functionName: "callSale",
-      args: [
-        nextTokenId,
-        fixedPriceMinterAddress,
-        encodeFunctionData({
-          abi: zoraCreatorFixedPriceSaleStrategyABI,
-          functionName: "setSale",
-          args: [nextTokenId, salesConfigWithDefaults],
-        }),
-      ],
-    }),
-  ];
-
-  if (mintToCreatorCount) {
-    setupActions.push(
-      encodeFunctionData({
-        abi: zoraCreator1155ImplABI,
-        functionName: "adminMint",
-        args: [account, nextTokenId, mintToCreatorCount, "0x"],
-      }),
-    );
-  }
-
-  if (royaltySettings) {
-    setupActions.push(
-      encodeFunctionData({
-        abi: zoraCreator1155ImplABI,
-        functionName: "updateRoyaltiesForToken",
-        args: [
-          nextTokenId,
-          {
-            royaltyMintSchedule: 0,
-            royaltyBPS: royaltySettings?.royaltyBPS || ROYALTY_BPS_DEFAULT,
-            royaltyRecipient: royaltySettings?.royaltyRecipient || account,
-          },
-        ],
-      }),
-    );
-  }
-
-  return setupActions;
-}
-
 export const getTokenIdFromCreateReceipt = (
   receipt: TransactionReceipt,
-): bigint | undefined => {
+): bigint => {
   for (const data of receipt.logs) {
     try {
       const decodedLog = decodeEventLog({
@@ -188,179 +47,303 @@ export const getTokenIdFromCreateReceipt = (
       }
     } catch (err: any) {}
   }
+
+  throw new Error(
+    "No event found in receipt that could be used to get tokenId",
+  );
 };
 
-async function getContractExists(
-  publicClient: PublicClient,
-  contract: ContractType,
-  // Account that is the creator of the contract
-  account: Address,
-) {
-  let contractAddress;
-  let contractExists = false;
-  if (typeof contract !== "string") {
-    contractAddress = await publicClient.readContract({
-      abi: zoraCreator1155FactoryImplABI,
-      // Since this address is deterministic we can hardcode a chain id safely here.
-      address: zoraCreator1155FactoryImplAddress[999],
-      functionName: "deterministicContractAddress",
-      args: [
-        account,
-        contract.uri,
-        contract.name,
-        contract.defaultAdmin || account,
-      ],
-    });
-
+export const getContractAddressFromReceipt = (
+  receipt: TransactionReceipt,
+): Address => {
+  for (const data of receipt.logs) {
     try {
-      await publicClient.readContract({
-        abi: zoraCreator1155ImplABI,
-        address: contractAddress,
-        functionName: "contractVersion",
+      const decodedLog = decodeEventLog({
+        abi: zoraCreator1155FactoryImplABI,
+        eventName: "SetupNewContract",
+        ...data,
       });
-      contractExists = true;
-    } catch (e: any) {
-      // This logic branch is hit if the contract doesn't exist
-      //  falling back to contractExists to false.
-    }
-    return { contractAddress, contractExists };
+      if (decodedLog && decodedLog.eventName === "SetupNewContract") {
+        return decodedLog.args.newContract;
+      }
+    } catch (err: any) {}
   }
 
-  return {
-    contractExists: true,
+  throw new Error(
+    "No event found in receipt that could be used to get contract address",
+  );
+};
+
+type MakeContractParametersBase = {
+  account: Address | Account;
+
+  tokenSetupActions: Hex[];
+};
+
+export function makeCreateContractAndTokenCall({
+  account,
+  contract,
+  royaltyBPS,
+  fundsRecipient,
+  tokenSetupActions,
+  chainId,
+}: {
+  chainId: number;
+  contract: NewContractParams;
+  royaltyBPS?: number;
+  fundsRecipient?: Address;
+} & MakeContractParametersBase) {
+  const accountAddress =
+    typeof account === "string" ? account : account.address;
+  return makeContractParameters({
+    abi: zoraCreator1155FactoryImplABI,
+    functionName: "createContractDeterministic",
+    account,
+    address:
+      zoraCreator1155FactoryImplAddress[
+        chainId as keyof typeof zoraCreator1155FactoryImplAddress
+      ],
+    args: [
+      contract.uri,
+      contract.name,
+      {
+        // deprecated
+        royaltyMintSchedule: 0,
+        royaltyBPS: royaltyBPS || ROYALTY_BPS_DEFAULT,
+        royaltyRecipient: fundsRecipient || accountAddress,
+      },
+      contract.defaultAdmin || accountAddress,
+      tokenSetupActions,
+    ],
+  });
+}
+
+function makeCreateTokenCall({
+  contractAddress,
+  account,
+  tokenSetupActions,
+}: {
+  contractAddress: Address;
+} & MakeContractParametersBase) {
+  return makeContractParameters({
+    abi: zoraCreator1155ImplABI,
+    functionName: "multicall",
+    account,
+    address: contractAddress,
+    args: [tokenSetupActions],
+  });
+}
+
+export class Create1155Client {
+  private readonly chainId: number;
+  private readonly publicClient: Pick<PublicClient, "readContract">;
+  public readonly contractGetter: IContractGetter;
+
+  constructor({
+    chainId,
+    publicClient,
+    contractGetter,
+  }: {
+    chainId: number;
+    publicClient: Pick<PublicClient, "readContract">;
+    contractGetter: IContractGetter;
+  }) {
+    this.chainId = chainId;
+    this.publicClient = publicClient;
+    this.contractGetter = contractGetter;
+  }
+
+  async createNew1155(
+    props: CreateNew1155ContractParams,
+  ): Promise<CreateNew1155ContractAndTokenReturn> {
+    return createNew1155ContractAndToken({
+      ...props,
+      publicClient: this.publicClient,
+      chainId: this.chainId,
+    });
+  }
+
+  async createNew1155OnExistingContract({
     contractAddress: contract,
+    account,
+    token,
+    getAdditionalSetupActions,
+  }: CreateNew1155TokenParams): Promise<CreateNew1155TokenReturn> {
+    return createNew1155Token({
+      contractAddress: contract,
+      account,
+      token,
+      getAdditionalSetupActions,
+      publicClient: this.publicClient,
+      chainId: this.chainId,
+      contractGetter: this.contractGetter,
+    });
+  }
+}
+
+async function createNew1155ContractAndToken({
+  contract,
+  account,
+  chainId,
+  token,
+  publicClient,
+  getAdditionalSetupActions,
+}: CreateNew1155ContractParams & {
+  publicClient: Pick<PublicClient, "readContract">;
+  chainId: number;
+}): Promise<CreateNew1155ContractAndTokenReturn> {
+  const nextTokenId = 1n;
+  const contractVersion = new1155ContractVersion(chainId);
+
+  const {
+    minter,
+    newToken,
+    setupActions: tokenSetupActions,
+  } = prepareSetupActions({
+    chainId,
+    account,
+    contractVersion,
+    nextTokenId,
+    token,
+    getAdditionalSetupActions,
+    contractName: contract.name,
+  });
+
+  const request = makeCreateContractAndTokenCall({
+    contract,
+    account,
+    chainId,
+    tokenSetupActions,
+    fundsRecipient: token.payoutRecipient,
+    royaltyBPS: token.royaltyBPS,
+  });
+
+  const contractAddress = await getDeterministicContractAddress({
+    account: typeof account === "string" ? account : account.address,
+    publicClient,
+    setupActions: tokenSetupActions,
+    chainId,
+    contract,
+  });
+
+  const prepareMint = makeOnchainPrepareMintFromCreate({
+    contractAddress: contractAddress,
+    contractVersion,
+    minter,
+    result: newToken.salesConfig,
+    tokenId: nextTokenId,
+    // to get the contract wide mint fee, we get what it would be for a new contract
+    getContractMintFee: async () =>
+      getNewContractMintFee({
+        publicClient,
+        chainId,
+      }),
+    chainId,
+  });
+
+  return {
+    parameters: request,
+    tokenSetupActions,
+    newTokenId: nextTokenId,
+    newToken,
+    contractAddress: contractAddress,
+    contractVersion,
+    minter,
+    prepareMint,
   };
 }
 
-type CreateNew1155TokenReturn = {
-  request: SimulateContractParameters<
-    any,
-    any,
-    any,
-    any,
-    any,
-    Account | Address
-  >;
-  tokenSetupActions: Hex[];
-  contractAddress: Address;
-  contractExists: boolean;
-};
+async function createNew1155Token({
+  contractAddress: contractAddress,
+  account,
+  getAdditionalSetupActions,
+  token,
+  chainId,
+  contractGetter,
+}: CreateNew1155TokenParams & {
+  publicClient: Pick<PublicClient, "readContract">;
+  chainId: number;
+  contractGetter: IContractGetter;
+}): Promise<CreateNew1155TokenReturn> {
+  const { nextTokenId, contractVersion, mintFee, name } =
+    await contractGetter.getContractInfo({ contractAddress, retries: 5 });
 
-export function create1155CreatorClient(clientConfig: ClientConfig) {
-  const { publicClient } = setupClient(clientConfig);
-  async function createNew1155Token({
-    contract,
-    tokenMetadataURI,
-    mintToCreatorCount = 1,
-    salesConfig = {},
-    maxSupply,
+  const {
+    minter,
+    newToken,
+    setupActions: tokenSetupActions,
+  } = prepareSetupActions({
+    chainId,
     account,
-    royaltySettings,
-    createReferral,
+    contractVersion,
+    nextTokenId,
+    token,
     getAdditionalSetupActions,
-  }: {
-    account: Address;
-    maxSupply?: bigint | number;
-    royaltySettings?: RoyaltySettingsType;
-    royaltyBPS?: number;
-    contract: ContractType;
-    tokenMetadataURI: string;
-    mintToCreatorCount?: bigint | number;
-    salesConfig?: SalesConfigParamsType;
-    createReferral?: Address;
-    getAdditionalSetupActions?: (args: {
-      tokenId: bigint;
-      contractAddress: Address;
-    }) => Hex[];
-  }): Promise<CreateNew1155TokenReturn> {
-    // Check if contract exists either from metadata or the static address passed in.
-    // If a static address is passed in, this fails if that contract does not exist.
-    const { contractExists, contractAddress } = await getContractExists(
-      publicClient,
-      contract,
-      account,
-    );
+    contractName: name,
+  });
 
-    // Assume the next token id is the first token available for a new contract.
-    let nextTokenId = 1n;
+  const request = makeCreateTokenCall({
+    contractAddress,
+    account,
+    tokenSetupActions,
+  });
 
-    if (contractExists) {
-      nextTokenId = await publicClient.readContract({
-        abi: zoraCreator1155ImplABI,
-        functionName: "nextTokenId",
-        address: contractAddress,
-      });
-    }
+  const prepareMint = makeOnchainPrepareMintFromCreate({
+    contractAddress: contractAddress,
+    contractVersion,
+    minter,
+    result: newToken.salesConfig,
+    tokenId: nextTokenId,
+    getContractMintFee: async () => mintFee,
+    chainId,
+  });
 
-    // Get the fixed price minter to use within the new token to set the sales configuration.
-    const fixedPriceMinterAddress = await publicClient.readContract({
-      abi: zoraCreator1155FactoryImplABI,
-      address: zoraCreator1155FactoryImplAddress[999],
-      functionName: "fixedPriceMinter",
-    });
+  return {
+    parameters: request,
+    tokenSetupActions,
+    newTokenId: nextTokenId,
+    newToken,
+    contractVersion,
+    minter,
+    prepareMint,
+  };
+}
 
-    let tokenSetupActions = create1155TokenSetupArgs({
-      tokenMetadataURI,
-      nextTokenId,
-      salesConfig,
-      maxSupply,
-      fixedPriceMinterAddress,
-      account,
-      mintToCreatorCount,
-      royaltySettings,
-      createReferral,
-    });
-    if (getAdditionalSetupActions) {
-      tokenSetupActions = [
-        ...getAdditionalSetupActions({ tokenId: nextTokenId, contractAddress }),
+function prepareSetupActions({
+  chainId,
+  account,
+  contractVersion,
+  nextTokenId,
+  token,
+  contractName,
+  getAdditionalSetupActions,
+}: {
+  chainId: number;
+  contractVersion: string;
+  nextTokenId: bigint;
+  contractName: string;
+} & CreateNew1155ParamsBase) {
+  const {
+    minter,
+    newToken,
+    setupActions: tokenSetupActions,
+  } = constructCreate1155TokenCalls({
+    chainId: chainId,
+    ownerAddress: typeof account === "string" ? account : account.address,
+    contractVersion,
+    nextTokenId,
+    ...token,
+    contractName,
+  });
+
+  const setupActions = getAdditionalSetupActions
+    ? [
+        ...getAdditionalSetupActions({
+          tokenId: nextTokenId,
+        }),
         ...tokenSetupActions,
-      ];
-    }
+      ]
+    : tokenSetupActions;
 
-    if (!contractAddress && typeof contract === "string") {
-      throw new Error("Invariant: contract cannot be missing and an address");
-    }
-    if (!contractExists && typeof contract !== "string") {
-      const request = makeSimulateContractParamaters({
-        abi: zoraCreator1155FactoryImplABI,
-        functionName: "createContractDeterministic",
-        account,
-        address: zoraCreator1155FactoryImplAddress[999],
-        args: [
-          contract.uri,
-          contract.name,
-          {
-            // deprecated
-            royaltyMintSchedule: 0,
-            royaltyBPS: royaltySettings?.royaltyBPS || ROYALTY_BPS_DEFAULT,
-            royaltyRecipient: royaltySettings?.royaltyRecipient || account,
-          },
-          contract.defaultAdmin || account,
-          tokenSetupActions,
-        ],
-      });
-      return {
-        request,
-        tokenSetupActions,
-        contractAddress,
-        contractExists,
-      };
-    } else if (contractExists) {
-      const request = makeSimulateContractParamaters({
-        abi: zoraCreator1155ImplABI,
-        functionName: "multicall",
-        account,
-        address: contractAddress,
-        args: [tokenSetupActions],
-      });
-      return {
-        request,
-        tokenSetupActions,
-        contractAddress,
-        contractExists,
-      };
-    }
-    throw new Error("Unsupported contract argument type");
-  }
-  return { createNew1155Token };
+  return { minter, newToken, setupActions };
 }

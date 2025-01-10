@@ -2,6 +2,8 @@ import { writeFile, readFile } from "fs/promises";
 import esMain from "es-main";
 // @ts-ignore
 import { glob } from "glob";
+// @ts-ignore
+import semverGt from "semver/functions/gt";
 
 type Deploy = {
   timestamp: number;
@@ -21,8 +23,8 @@ async function copyEnvironmentRunFiles() {
 
       // a recent version of forge added a bug where the returns value with some sort of url based encoding.
       // the below code is a hack to fix this. It should be removed once forge is fixed.
-      // use string regex replace all to remove all instances of \\ from returns (this appeared in a wierd version of forge)
-      // also opening and closing quotes that incorrecly appear before opening bracket:
+      // use string regex replace all to remove all instances of \\ from returns (this appeared in a weird version of forge)
+      // also opening and closing quotes that incorrectly appear before opening bracket:
       const filtered = returns
         .replace(/\\/g, "")
         .replace('"{', "{")
@@ -65,6 +67,22 @@ async function copyEnvironmentRunFiles() {
 
   withLatest.forEach(async ({ chainId, latest }) => {
     const filePath = `addresses/${chainId}.json`;
+
+    const fileResponse = await readFile(filePath);
+    if (fileResponse) {
+      const version = JSON.parse(fileResponse.toString("utf-8"));
+      if (
+        semverGt(
+          version.CONTRACT_1155_IMPL_VERSION,
+          latest!.returns.CONTRACT_1155_IMPL_VERSION,
+        )
+      ) {
+        console.log(
+          `skipping since ${version.CONTRACT_1155_IMPL_VERSION} is newer than deploy files (${latest!.returns.CONTRACT_1155_IMPL_VERSION})`,
+        );
+        return;
+      }
+    }
 
     await writeFile(
       filePath,

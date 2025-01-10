@@ -413,6 +413,7 @@ type SalesStrategyConfig @entity {
   fixedPrice: SalesConfigFixedPriceSaleStrategy
   redeemMinter: SalesConfigRedeemMinterStrategy
   erc20Minter: SalesConfigERC20Minter
+  zoraTimedMinter: SalesConfigZoraTimedSaleStrategy
   type: String!
 }
 
@@ -437,6 +438,7 @@ type RoyaltyConfig @entity {
   royaltyMintSchedule: BigInt!
   contract: ZoraCreateContract
   tokenAndContract: ZoraCreateToken
+  cointag: Cointag
 }
 
 type Token1155Holder @entity {
@@ -589,6 +591,23 @@ type Auction @entity {
   ended: Boolean
 }
 
+### Sparks contract
+
+type SparkToken @entity {
+  id: ID!
+  tokenId: BigInt!
+  pricePerToken: BigInt!
+  # Marking tokenAddress as potentially nullable in order to graft as the field did not exist on earlier versions
+  tokenAddress: Bytes
+}
+
+type SparkAccountBalance @entity {
+  id: ID!
+  balance: BigInt!
+  account: Bytes!
+  sparkToken: SparkToken!
+}
+
 ### Mints contract
 
 type MintToken @entity {
@@ -650,4 +669,100 @@ type ERC20RewardsDeposit @entity @immutable {
   tokenId: BigInt!
   firstMinter: Bytes!
   firstMinterReward: BigInt!
+}
+
+# ZoraTimedSaleStrategy
+
+type ERC20Z @entity {
+  id: ID!
+  name: String!
+  symbol: String!
+  pool: Bytes!
+}
+
+type SalesConfigZoraTimedSaleStrategy @entity {
+  # Begin – default data block
+  id: ID!
+  txn: TransactionInfo!
+  block: BigInt!
+  address: Bytes!
+  timestamp: BigInt!
+  # End – default data block
+
+  configAddress: Bytes!
+
+  tokenId: BigInt!
+  contract: ZoraCreateContract!
+  saleStart: BigInt!
+  saleEnd: BigInt!
+  erc20Z: ERC20Z!
+  mintFee: BigInt!
+  secondaryActivated: Boolean!
+  erc20z: Bytes!
+  pool: Bytes!
+
+  # V2 fields (optional)
+  marketCountdown: BigInt
+  minimumMarketEth: BigInt
+}
+
+type ZoraTimedSaleStrategyRewardsDeposit @entity {
+  # Begin – default data block
+  id: ID!
+  txn: TransactionInfo!
+  block: BigInt!
+  address: Bytes!
+  timestamp: BigInt!
+  # End – default data block
+
+  collection: Bytes!
+  tokenId: BigInt!
+  creator: Bytes!
+  creatorReward: BigInt!
+  createReferral: Bytes!
+  createReferralReward: BigInt!
+  mintReferral: Bytes!
+  mintReferralReward: BigInt!
+  market: Bytes!
+  marketReward: BigInt!
+  zora: Bytes!
+  zoraReward: BigInt!
+}
+
+type Comment @entity {
+  # Begin – default data block
+  id: ID!
+  txn: TransactionInfo!
+  address: Bytes!
+  block: BigInt!
+  timestamp: BigInt!
+  # End – default data block
+
+  tokenAndContract: ZoraCreateToken!
+  commentText: String!
+  tokenId: BigInt!
+  nonce: Bytes!
+  commenter: Bytes!
+  contractAddress: Bytes!
+  replyToId: Bytes!
+  referrer: Bytes!
+  commentTimestamp: BigInt!
+  sparksQuantity: BigInt!
+  commentId: Bytes!
+  replyCount: BigInt!
+}
+
+type Cointag @entity {
+  id: ID!
+  txn: TransactionInfo!
+  block: BigInt!
+  timestamp: BigInt!
+  creatorRewardRecipient: Bytes!
+  pool: Bytes!
+  percentageToBuyBurn: BigInt!
+  erc20: Bytes!
+  version: String!
+  createdOn: BigInt!
+  protocolRewardsBalance: BigInt!
+  royalties: [RoyaltyConfig!]! @derivedFrom(field: "cointag")
 }

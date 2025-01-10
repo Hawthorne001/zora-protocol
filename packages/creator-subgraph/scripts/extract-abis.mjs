@@ -12,14 +12,21 @@ import {
   protocolRewardsABI,
   erc20MinterABI,
 } from "@zoralabs/zora-1155-contracts";
+import { zoraTimedSaleStrategyImplABI } from "@zoralabs/erc20z";
 import {
   zoraMints1155ABI,
   zoraMintsManagerImplABI,
-} from "@zoralabs/mints-contracts";
+  zoraSparks1155ABI,
+} from "@zoralabs/sparks-contracts";
+import {
+  cointagFactoryImplABI,
+  cointagImplABI as cointagABI,
+} from "@zoralabs/cointags-contracts";
 import erc721Drop from "@zoralabs/nft-drop-contracts/dist/artifacts/ERC721Drop.sol/ERC721Drop.json" assert { type: "json" };
 import zoraNFTCreatorV1 from "@zoralabs/nft-drop-contracts/dist/artifacts/ZoraNFTCreatorV1.sol/ZoraNFTCreatorV1.json" assert { type: "json" };
 import editionMetadataRenderer from "@zoralabs/nft-drop-contracts/dist/artifacts/EditionMetadataRenderer.sol/EditionMetadataRenderer.json" assert { type: "json" };
 import dropMetadataRenderer from "@zoralabs/nft-drop-contracts/dist/artifacts/DropMetadataRenderer.sol/DropMetadataRenderer.json" assert { type: "json" };
+import { commentsImplABI } from "@zoralabs/comments-contracts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -59,10 +66,16 @@ output_abi(
   "ZoraCreatorRedeemMinterStrategy",
   zoraCreatorRedeemMinterStrategyABI,
 );
+output_abi("ZoraTimedSaleStrategy", zoraTimedSaleStrategyImplABI);
 
 output_abi("ProtocolRewards", protocolRewardsABI);
 
 output_abi("ZoraMints1155", zoraMints1155ABI);
 output_abi("ZoraMintsManagerImpl", zoraMintsManagerImplABI);
+output_abi("ZoraSparks1155", zoraSparks1155ABI);
 
 output_abi("ERC20Minter", erc20MinterABI);
+
+output_abi("Comments", commentsImplABI);
+output_abi("CointagFactory", cointagFactoryImplABI);
+output_abi("Cointag", cointagABI);

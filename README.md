@@ -2,7 +2,7 @@
 
 [![Contracts](https://github.com/ourzora/zora-protocol/actions/workflows/contracts.yml/badge.svg)](https://github.com/ourzora/zora-protocol/actions/workflows/contracts.yml)
 
-This repository is a monorepo for the Zora Protocol
+This repository is a monorepo for the Zora Protocol.
 
 In it you will find:
 
@@ -26,24 +26,31 @@ Install prerequisites:
 
 Install dependencies:
 
-    yarn
+    pnpm
 
 Build contracts:
 
-    yarn build
+    pnpm build
 
 Run tests:
 
-    yarn test
+    pnpm test
 
 Run in development mode (watch tests):
 
-    yarn dev
+    pnpm dev
 
 ## Bug Bounty
 
 5 ETH for any critical bugs that could result in loss of funds. Rewards will be given for smaller bugs or ideas.
 
-## Development workflow
+## Updating Build / Release Process
 
-See [DEVELOPING.md](./DEVELOPING.md)
+After updating build settings with pnpm, run:
+
+- `pnpm install`
+- `pnpm run build:js`
+- `pnpm run release`
+
+This tests the full build and release flow.
+Without authentication packages will not be published but staged for publish.

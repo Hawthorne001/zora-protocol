@@ -12,9 +12,10 @@ import {IOwnable} from "@zoralabs/zora-1155-contracts/src/interfaces/IOwnable.so
 import {ICreatorRoyaltiesControl} from "@zoralabs/zora-1155-contracts/src/interfaces/ICreatorRoyaltiesControl.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {ZoraCreatorFixedPriceSaleStrategy} from "@zoralabs/zora-1155-contracts/src/minters/fixed-price/ZoraCreatorFixedPriceSaleStrategy.sol";
-import {ForkDeploymentConfig, Deployment} from "../src/DeploymentConfig.sol";
+import {DeploymentConfig, Deployment} from "../src/DeploymentConfig.sol";
+import {ForkDeploymentConfig} from "@zoralabs/shared-contracts/deployment/ForkDeploymentConfig.sol";
 
-contract ZoraCreator1155FactoryBase is ForkDeploymentConfig, Test {
+contract ZoraCreator1155FactoryBase is ForkDeploymentConfig, Test, DeploymentConfig {
     uint256 constant quantityToMint = 3;
     uint256 constant tokenMaxSupply = 100;
     uint32 constant royaltyMintSchedule = 10;
@@ -56,7 +57,7 @@ contract ZoraCreator1155FactoryBase is ForkDeploymentConfig, Test {
     }
 
     function _createErc1155Contract(IZoraCreator1155Factory factory) private returns (IZoraCreator1155 target) {
-        // create the contract, with no toekns
+        // create the contract, with no tokens
         bytes[] memory initSetup = new bytes[](0);
 
         address admin = creator;
@@ -101,12 +102,12 @@ contract ZoraCreator1155FactoryBase is ForkDeploymentConfig, Test {
         // mint the token
         vm.deal(collector, valueToSend);
         vm.startPrank(collector);
-        ZoraCreator1155Impl(payable(address(target))).mintWithRewards{value: valueToSend}(
+        ZoraCreator1155Impl(payable(address(target))).mint{value: valueToSend}(
             fixedPrice,
             tokenId,
             quantityToMint,
-            abi.encode(collector),
-            address(0)
+            new address[](1),
+            abi.encode(collector)
         );
 
         uint256 balance = ZoraCreator1155Impl(payable(address(target))).balanceOf(collector, tokenId);

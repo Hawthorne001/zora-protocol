@@ -8,13 +8,15 @@ import {
   createPublicClient,
   createWalletClient,
   Address,
+  Chain,
 } from "viem";
 
 export const chain = zora;
+export const chainId = zora.id;
 
 export const publicClient = createPublicClient({
   // this will determine which chain to interact with
-  chain: zora,
+  chain: zora as Chain,
   transport: http(),
 });
 
@@ -23,6 +25,6 @@ export const walletClient = createWalletClient({
   transport: custom(window.ethereum!),
 });
 
-const [account] = (await walletClient.getAddresses()) as [Address];
+const [minterAccount] = (await walletClient.getAddresses()) as [Address];
 
-export { account };
+export { minterAccount };

@@ -1,5 +1,126 @@
 # @zoralabs/protocol-deployments
 
+## 0.4.0
+
+### Minor Changes
+
+- fc8e86a8: - Added Cointags addresses and abis.
+  - Added IUniswapV3Pool ABI.
+
+## 0.3.11
+
+### Patch Changes
+
+- ff8084fe: Update implementation contract versions and addresses for erc20z
+
+## 0.3.10
+
+### Patch Changes
+
+- abbd6333: Added smart wallet factory deployment and abi
+
+## 0.3.9
+
+### Patch Changes
+
+- 4928687d: - Include the `Comments` and `CallerAndCommenter` abis and deployed addresses.
+  - Added new exports for Comments contract cross-chain functionality:
+    - Introduced `permitCommentTypedDataDefinition` function to generate typed data for cross-chain permit commenting
+    - Introduced `permitSparkCommentTypedDataDefinition` function to generate typed data for cross-chain permit sparking
+    - Introduced `permitTimedSaleMintAndCommentTypedDataType` to generate typed data for cross-chain permit minting and commenting.
+    - Introduced `permitBuyOnSecondaryAndCommentTypedDataDefinition` function to generate typed data for cross-chain permit buying on secondary and commenting.
+    - Added `sparkValue` helper function to get the value of a Spark
+
+## 0.3.8
+
+### Patch Changes
+
+- ad707434: Updated the 1155 Implementation reduceSupply function to be gated to the `TimedSaleStrategy` constructor argument
+  to ensure markets are launched when desired.
+- 2e68a87c: Updated 1155 impl versions and addresses
+- 17cc9821: Publishing `SponsoredSparksSpender` addresses and abi
+
+## 0.3.7
+
+### Patch Changes
+
+- c08ec3b3: Deployed SponsoredSparksSpender to more chains
+
+## 0.3.6
+
+### Patch Changes
+
+- d6aa9a00: Fixed the minter address for ZoraTimedSaleStrategy to point to the deterministically deployed address with the correct contract version.
+
+## 0.3.5
+
+### Patch Changes
+
+- 4a29c2b9: Bump viem to 2.21.21
+
+## 0.3.4
+
+### Patch Changes
+
+- 66f33bbb: fix: update secondary swap helper contract address
+
+## 0.3.3
+
+### Patch Changes
+
+- b885539f: Publish weth addresses
+
+## 0.3.2
+
+### Patch Changes
+
+- 247ebc86: update for timed sales v2
+- 24520e9a: Fix sdk setSale for v2 params
+
+## 0.3.1
+
+### Patch Changes
+
+- d221894d: Fix royalties contract address. Include secondary swap address
+- f94e5f03: Deployed secondary swap to rest of chains
+
+## 0.3.0
+
+### Minor Changes
+
+- 58f59243: Including erc20z contracts in protocol-deployments
+
+### Patch Changes
+
+- b5a7fac4: Deployed latest 1155 to base and base sepolia
+
+## 0.2.2
+
+### Patch Changes
+
+- 12909b5b: Export sparks sponsored mints spender abi, address, and typed data definition
+- 58914a0c: Deployed latest 1155 version to zora mainnet, zora sepolia, sepolia
+
+## 0.2.1
+
+### Patch Changes
+
+- 527aa518: Move from yarn to pnpm properly pinning deps packages
+
+## 0.2.0
+
+### Minor Changes
+
+- 0ec838a4: Publishing Sparks contracts abis and addresses.
+
+### Patch Changes
+
+- 898c84a7: [chore] Update dependencies and runtime scripts
+
+  This ensures jobs do not match binary names to make runs less ambigious and also that all deps are accounted for.
+
+- e0b5074d: Updated mainnet 1155 addresses and versions
+
 ## 0.1.13
 
 ### Patch Changes

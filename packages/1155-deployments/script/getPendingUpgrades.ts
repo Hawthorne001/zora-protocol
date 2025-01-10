@@ -29,7 +29,7 @@ import {
   zoraCreator1155FactoryImplABI,
   zoraCreator1155ImplABI,
 } from "@zoralabs/zora-1155-contracts";
-import { readFile, writeFile } from "fs/promises";
+import { readFile, writeFile, readdir } from "fs/promises";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -49,7 +49,7 @@ const chains: {
   subgraph: string;
   upgradeGates: Address[];
   additionalVersions?: {
-    [version: string]: Address;
+    [version: string]: Address | Address[];
   };
 }[] = [
   {
@@ -77,7 +77,10 @@ const chains: {
     ],
     subgraph: getSubgraph("zora-create-optimism", "stable"),
     additionalVersions: {
-      "1.4.0": "0x8Ca5e648C5dFEfcdDa06d627F4b490B719ccFD98",
+      "1.4.0": [
+        "0x8Ca5e648C5dFEfcdDa06d627F4b490B719ccFD98",
+        "0xeb29a4e5b84fef428c072deba2444e93c080ce87",
+      ],
     },
   },
   {
@@ -144,6 +147,7 @@ const getMissingUpgradesFrom = async ({
   (
     await Promise.all(
       fromVersions.map(async (fromVersion) => {
+        if (fromVersion.version === toVersion.version) return;
         const upgradeRegistered = await publicClient.readContract({
           address: upgradeGate,
           abi: upgradeGateABI,
@@ -198,7 +202,7 @@ async function getVersions({
   publicClient: PublicClient;
   subgraphUrl: string;
   additionalVersions?: {
-    [version: string]: Address;
+    [version: string]: Address | Address[];
   };
 }) {
   // get upgrades of type 1155
@@ -231,7 +235,7 @@ async function getVersions({
 
       let contractImpl: Address | null = null;
 
-      // try to get contract fro rpc
+      // try to get contract for rpc
       try {
         contractImpl = await publicClient.readContract({
           address: factoryImpl as Address,
@@ -252,9 +256,15 @@ async function getVersions({
     for (const [version, contractImplAddress] of Object.entries(
       additionalVersions,
     )) {
-      deployedVersions.push({
-        version,
-        contractImplAddress,
+      const contractImplAddresses =
+        typeof contractImplAddress === "string"
+          ? [contractImplAddress]
+          : contractImplAddress;
+      contractImplAddresses.forEach((contractImplAddress) => {
+        deployedVersions.push({
+          version,
+          contractImplAddress,
+        });
       });
     }
   }
@@ -285,23 +295,29 @@ async function validateConfiguredVersions({
   additionalVersions,
   publicClient,
 }: {
-  additionalVersions: { [version: string]: Address };
+  additionalVersions: { [version: string]: Address | Address[] };
   publicClient: PublicClient;
 }) {
   await Promise.all(
     Object.entries(additionalVersions).map(
-      async ([version, contractImplAddress]) => {
-        const existingVersion = await publicClient.readContract({
-          address: contractImplAddress,
-          abi: zoraCreator1155ImplABI,
-          functionName: "contractVersion",
-        });
+      async ([version, contractImplAddressOrAddresses]) => {
+        const contractImplAddresses =
+          typeof contractImplAddressOrAddresses === "string"
+            ? [contractImplAddressOrAddresses]
+            : contractImplAddressOrAddresses;
+        contractImplAddresses.forEach(async (contractImplAddress) => {
+          const existingVersion = await publicClient.readContract({
+            address: contractImplAddress,
+            abi: zoraCreator1155ImplABI,
+            functionName: "contractVersion",
+          });
 
-        if (existingVersion !== version) {
-          throw new Error(
-            `version ${existingVersion} on contract at ${contractImplAddress} mismatched from configured version ${version}`,
-          );
-        }
+          if (existingVersion !== version) {
+            throw new Error(
+              `version ${existingVersion} on contract at ${contractImplAddress} mismatched from configured version ${version}`,
+            );
+          }
+        });
       },
     ),
   );
@@ -456,7 +472,7 @@ const getMissingUpgradePathsForChain = async ({
   subgraphUrl: string;
   upgradeGates: Address[];
   additionalVersions?: {
-    [version: string]: Address;
+    [version: string]: Address | Address[];
   };
 }) => {
   const publicClient = makePublicClient({ chain, rpc });
@@ -487,11 +503,12 @@ const getMissingUpgradePathsForChain = async ({
 };
 
 async function getMissingUpgradePath(chainName: string) {
-  const configuredChain = await getChain(chainName);
+  const configuredChain =
+    chainName === zoraSepolia.name || chainName === `${zoraSepolia.id}`
+      ? {...zoraSepolia, rpcUrl: 'https://sepolia.rpc.zora.energy/'}
+      : await getChain(chainName);
 
-  if (configuredChain.id === 9999999) {
-    configuredChain.id = zoraSepolia.id;
-  }
+  console.log("Getting upgrade path updates for ", configuredChain.id);
 
   if (!configuredChain) {
     throw new Error(`No chain config found for chain name ${chainName}`);
@@ -500,7 +517,9 @@ async function getMissingUpgradePath(chainName: string) {
   const chainConfig = chains.find((x) => x.chain.id === configuredChain.id);
 
   if (!chainConfig) {
-    throw new Error(`No chain config found for chain id ${configuredChain.id}`);
+    throw new Error(
+      `No chain config found for chain id ${configuredChain.id} (attempting to find ${chainName})`,
+    );
   }
 
   const {
@@ -526,19 +545,26 @@ async function getMissingUpgradePath(chainName: string) {
     missingUpgradePaths,
   });
 }
-function getChainNamePositionalArg() {
+
+export const main = async () => {
   // parse chain id as first argument:
   const chainName = process.argv[2];
 
-  if (!chainName) {
-    throw new Error("Must provide chain name as first argument");
+  if (chainName) {
+    await getMissingUpgradePath(chainName);
+  } else {
+    for (const file of await readdir(join(__dirname, "../addresses"))) {
+      console.log(file);
+      if (!file.endsWith(".json")) {
+        continue;
+      }
+      try {
+        await getMissingUpgradePath(file.replace(/.json$/, ""));
+      } catch (err: any) {
+        console.error(err);
+      }
+    }
   }
-
-  return chainName;
-}
-
-export const main = async () => {
-  await getMissingUpgradePath(getChainNamePositionalArg());
 };
 
 main();

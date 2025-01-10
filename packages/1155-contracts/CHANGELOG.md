@@ -1,5 +1,68 @@
 # @zoralabs/zora-1155-contracts
 
+## 2.13.2
+
+### Patch Changes
+
+- 1fd92cc8: Add contractName field.
+
+## 2.13.1
+
+### Patch Changes
+
+- ad707434: Updated the 1155 Implementation reduceSupply function to be only allowed to be called by the known `TimedSaleStrategy` address to prevent supply from being reduced in the incorrect matter which would prevent markets from being launched.
+
+## 2.13.0
+
+### Minor Changes
+
+- 737fbef9: Mint fee on the 1155 contract changed to 0.000111 eth
+
+## 2.12.4
+
+### Patch Changes
+
+- 82f63033: Remove unused canMintQuantity modifier from 1155 contracts
+
+## 2.12.3
+
+### Patch Changes
+
+- 2fce20f4: Adding a new getOrCreateFactory function for the 1155 contracts.
+
+## 2.12.2
+
+### Patch Changes
+
+- cf108bdb: 1155 mint fee hardcoded to 0.000777 eth
+
+## 2.12.1
+
+### Patch Changes
+
+- 527aa518: Move from yarn to pnpm properly pinning deps packages.
+
+## 2.12.0
+
+### Minor Changes
+
+- 0ec838a4: 1155 contracts have a hardcoded mint fee of 0.000111 ether, and no longer have a fee that is determined by the MintsManager contract
+
+### Patch Changes
+
+- 898c84a7: [chore] Update dependencies and runtime scripts
+
+  This ensures jobs do not match binary names to make runs less ambigious and also that all deps are accounted for.
+
+- 2677c896: Add reduceSupply interface check to 1155
+
+## 2.11.0
+
+### Minor Changes
+
+- d460e79c: - Introduced a `reduceSupply` function allowing an approved minter or admin to reduce the supply for a given token id. New supply must be less than the current maxSupply, and greater than or equal to the total minted so far.
+  - Removed the deprecated `mintWithRewards` function
+
 ## 2.10.1
 
 ### Patch Changes
@@ -55,7 +118,10 @@
 
   ```solidity
   interface ISetPremintSale {
-    function setPremintSale(uint256 tokenId, bytes calldata salesConfig) external;
+    function setPremintSale(
+      uint256 tokenId,
+      bytes calldata salesConfig
+    ) external;
   }
 
   // example implementation:
@@ -98,7 +164,8 @@
       return buildSalesConfigForPremint(premintSalesConfig);
     }
 
-    mapping(address => mapping(uint256 => IERC20Minter.SalesConfig)) public sale;
+    mapping(address => mapping(uint256 => IERC20Minter.SalesConfig))
+      public sale;
 
     function setPremintSale(
       uint256 tokenId,
@@ -471,7 +538,7 @@ Prior to 2.9.0, rewards were distributed based on a fixed value in ETH per token
     uint64 mintStart;
     // The duration of the mint, starting from the first mint of this token. 0 for infinite
     uint64 mintDuration;
-    // deperecated field; will be ignored.
+    // deprecated field; will be ignored.
     uint32 royaltyMintSchedule;
     // RoyaltyBPS for created tokens. The royalty amount in basis points for secondary sales.
     uint32 royaltyBPS;
@@ -555,7 +622,7 @@ Prior to 2.9.0, rewards were distributed based on a fixed value in ETH per token
 
 ### Patch Changes
 
-- 9207e8f: Deployed determinstic proxies and latest versions to mainnet, goerli, base, base goerli, optimism, optimism goerli
+- 9207e8f: Deployed deterministic proxies and latest versions to mainnet, goerli, base, base goerli, optimism, optimism goerli
 
 ## 2.0.1
 
@@ -568,7 +635,7 @@ Prior to 2.9.0, rewards were distributed based on a fixed value in ETH per token
 ### Major Changes
 
 - 82f6506: Premint with Delegated Minting
-  Determinstic Proxy Addresses
+  Deterministic Proxy Addresses
   Premint deployed to zora and zora goerli
 
 ## 1.6.1

@@ -15,16 +15,10 @@ import {Zora1155} from "../../src/proxies/Zora1155.sol";
 import {UpgradeGate} from "../../src/upgrades/UpgradeGate.sol";
 import {MockContractMetadata} from "../mock/MockContractMetadata.sol";
 import {ProxyShim} from "../../src/utils/ProxyShim.sol";
-import {ZoraMintsFixtures} from "../fixtures/ZoraMintsFixtures.sol";
-import {IZoraMintsMinterManager} from "@zoralabs/mints-contracts/src/interfaces/IZoraMintsMinterManager.sol";
-import {IZoraMints1155} from "@zoralabs/mints-contracts/src/interfaces/IZoraMints1155.sol";
 
 contract ZoraCreator1155FactoryTest is Test {
     using stdJson for string;
     address internal zora;
-    uint256 internal mintFeeAmount;
-    uint256 initialTokenId = 777;
-    uint256 initialTokenPrice = 0.000777 ether;
 
     ZoraCreator1155FactoryImpl internal factoryImpl;
     ZoraCreator1155FactoryImpl internal factory;
@@ -32,7 +26,6 @@ contract ZoraCreator1155FactoryTest is Test {
 
     function setUp() external {
         zora = makeAddr("zora");
-        mintFeeAmount = 0.000777 ether;
 
         upgradeGate = new UpgradeGate();
         upgradeGate.initialize(zora);
@@ -40,9 +33,10 @@ contract ZoraCreator1155FactoryTest is Test {
         address factoryShimAddress = address(new ProxyShim(zora));
         Zora1155Factory factoryProxy = new Zora1155Factory(factoryShimAddress, "");
 
+        address mockTimedSaleStrategy = makeAddr("timedSaleStrategy");
+
         ProtocolRewards protocolRewards = new ProtocolRewards();
-        IZoraMintsMinterManager mints = ZoraMintsFixtures.createMockMints(initialTokenId, initialTokenPrice);
-        ZoraCreator1155Impl zoraCreator1155Impl = new ZoraCreator1155Impl(zora, address(upgradeGate), address(protocolRewards), address(mints));
+        ZoraCreator1155Impl zoraCreator1155Impl = new ZoraCreator1155Impl(zora, address(upgradeGate), address(protocolRewards), mockTimedSaleStrategy);
 
         factoryImpl = new ZoraCreator1155FactoryImpl(zoraCreator1155Impl, IMinter1155(address(1)), IMinter1155(address(2)), IMinter1155(address(3)));
         factory = ZoraCreator1155FactoryImpl(address(factoryProxy));
@@ -213,6 +207,74 @@ contract ZoraCreator1155FactoryTest is Test {
         assertEq(createdAddress, expectedContractAddress);
     }
 
+    function test_createContractDeterministic_createsAndReturnsLastCreated(
+        string calldata nameA,
+        string calldata uri,
+        address contractAdmin,
+        // this number will determine how transactions the factory makes before
+        // creating the deterministic contract.  it should not affect the address
+        uint16 numberOfCallsBeforeCreation
+    ) external {
+        vm.assume(contractAdmin != address(0));
+        vm.assume(numberOfCallsBeforeCreation < 5);
+
+        address contractCreator = vm.addr(1);
+
+        bytes[] memory initSetup = new bytes[](1);
+        initSetup[0] = abi.encodeWithSelector(IZoraCreator1155.addPermission.selector, 0, contractCreator, 8);
+
+        // we can know ahead of time the expected address
+        address expectedContractAddress = factory.deterministicContractAddressWithSetupActions(contractCreator, uri, nameA, contractAdmin, initSetup);
+
+        // create parameters for contract creation
+        ICreatorRoyaltiesControl.RoyaltyConfiguration memory royaltyConfig = ICreatorRoyaltiesControl.RoyaltyConfiguration({
+            royaltyBPS: 10,
+            royaltyRecipient: vm.addr(5),
+            royaltyMintSchedule: 0
+        });
+
+        address[] memory deployments = new address[](2);
+
+        vm.startPrank(contractCreator);
+        deployments[0] = factory.createContractDeterministic(uri, nameA, royaltyConfig, payable(contractAdmin), initSetup);
+        deployments[1] = factory.getOrCreateContractDeterministic(deployments[0], uri, nameA, royaltyConfig, payable(contractAdmin), initSetup);
+        assertEq(deployments[0], deployments[1]);
+    }
+
+    function test_createContractDeterministic_createsAndReturnsCreatedBoth(
+        string calldata nameA,
+        string calldata uri,
+        address contractAdmin,
+        // this number will determine how transactions the factory makes before
+        // creating the deterministic contract.  it should not affect the address
+        uint16 numberOfCallsBeforeCreation
+    ) external {
+        vm.assume(contractAdmin != address(0));
+        vm.assume(numberOfCallsBeforeCreation < 5);
+
+        address contractCreator = vm.addr(1);
+
+        bytes[] memory initSetup = new bytes[](1);
+        initSetup[0] = abi.encodeWithSelector(IZoraCreator1155.addPermission.selector, 0, contractCreator, 8);
+
+        // we can know ahead of time the expected address
+        address expectedContractAddress = factory.deterministicContractAddressWithSetupActions(contractCreator, uri, nameA, contractAdmin, initSetup);
+
+        // create parameters for contract creation
+        ICreatorRoyaltiesControl.RoyaltyConfiguration memory royaltyConfig = ICreatorRoyaltiesControl.RoyaltyConfiguration({
+            royaltyBPS: 10,
+            royaltyRecipient: vm.addr(5),
+            royaltyMintSchedule: 0
+        });
+
+        address[] memory deployments = new address[](2);
+
+        vm.startPrank(contractCreator);
+        deployments[0] = factory.getOrCreateContractDeterministic(address(0), uri, nameA, royaltyConfig, payable(contractAdmin), initSetup);
+        deployments[1] = factory.getOrCreateContractDeterministic(address(0), uri, nameA, royaltyConfig, payable(contractAdmin), initSetup);
+        assertEq(deployments[0], deployments[1]);
+    }
+
     function test_createContractDeterministic_whenContractUpgraded_stillHasSameAddress() external {
         string memory uri = "ipfs://asdfadsf";
         string memory nameA = "nameA";
@@ -227,12 +289,7 @@ contract ZoraCreator1155FactoryTest is Test {
         // * create a new version of the erc1155 implementation
         // * create a new factory that points to that new erc1155 implementation,
         // * upgrade the proxy to point to the new factory
-        IZoraCreator1155 newZoraCreator = new ZoraCreator1155Impl(
-            zora,
-            address(factory),
-            address(new ProtocolRewards()),
-            address(ZoraMintsFixtures.createMockMints(initialTokenId, initialTokenPrice))
-        );
+        IZoraCreator1155 newZoraCreator = new ZoraCreator1155Impl(zora, address(factory), address(new ProtocolRewards()), makeAddr("timedSaleStrategy"));
 
         ZoraCreator1155FactoryImpl newFactoryImpl = new ZoraCreator1155FactoryImpl(
             newZoraCreator,
@@ -281,12 +338,7 @@ contract ZoraCreator1155FactoryTest is Test {
         ZoraCreator1155Impl creatorProxy = ZoraCreator1155Impl(payable(createdAddress));
 
         // 2. upgrade the created contract by creating a new contract and upgrading the existing one to point to it.
-        IZoraCreator1155 newZoraCreator = new ZoraCreator1155Impl(
-            zora,
-            address(0),
-            address(new ProtocolRewards()),
-            address(ZoraMintsFixtures.createMockMints(initialTokenId, initialTokenPrice))
-        );
+        IZoraCreator1155 newZoraCreator = new ZoraCreator1155Impl(zora, address(upgradeGate), address(new ProtocolRewards()), makeAddr("timedSaleStrategy"));
 
         address[] memory baseImpls = new address[](1);
         baseImpls[0] = address(factory.zora1155Impl());

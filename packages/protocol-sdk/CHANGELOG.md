@@ -1,5 +1,267 @@
 # @zoralabs/protocol-sdk
 
+## 0.11.12
+
+### Patch Changes
+
+- Updated dependencies [fc8e86a8]
+  - @zoralabs/protocol-deployments@0.4.0
+
+## 0.11.11
+
+### Patch Changes
+
+- ff8084fe: Updates `minimumMintsForCountdown` and `mintCount` calculations to use the updated 0.0000222 ETH market reward live in v2.2.0 of the timed sale strategy
+- 2ce16ac7: Move from allowlist.zora.co to lanyard.org for allowlist manager service
+- Updated dependencies [ff8084fe]
+  - @zoralabs/protocol-deployments@0.3.11
+
+## 0.11.10
+
+### Patch Changes
+
+- a1137e35: saleStart defaults to current timestamp in seconds
+- Updated dependencies [abbd6333]
+  - @zoralabs/protocol-deployments@0.3.10
+
+## 0.11.9
+
+### Patch Changes
+
+- 9d5d1638: When minting + commenting, and using the timed sale strategy, protocol sdk will call the CallerAndCommenter contract
+- 088ec6fb: When buying on secondary, you can now add a comment, which will call the CallerAndCommenter's buyOnSecondaryAndComment function.
+- Updated dependencies [4928687d]
+  - @zoralabs/protocol-deployments@0.3.9
+
+## 0.11.8
+
+### Patch Changes
+
+- 330f1131: Fix royalties queries to filter by erc20z that have secondary activated
+
+## 0.11.7
+
+### Patch Changes
+
+- 041871d7: Fix royalties query for secondary tokens to query subgraph for royaltyRecipient instead of user.
+
+## 0.11.6
+
+### Patch Changes
+
+- Updated dependencies [ad707434]
+- Updated dependencies [2e68a87c]
+- Updated dependencies [17cc9821]
+  - @zoralabs/protocol-deployments@0.3.8
+
+## 0.11.5
+
+### Patch Changes
+
+- 85d09fa5: - Adds new fields to `SecondaryInfo` type to expose more information about the secondary market configuration:
+
+  - `name`: The ERC20Z token name
+  - `symbol`: The ERC20Z token symbol
+  - `saleStart`: Earliest time tokens can be minted
+  - `marketCountdown`: Time after minimum mints reached until secondary market launches
+  - `minimumMintsForCountdown`: Minimum mints required to start countdown
+  - `mintCount`: Total number of tokens minted so far
+  - Deprecates `minimumMarketEth` parameter in favor of `minimumMintsForCountdown` when creating tokens:
+    - `minimumMintsForCountdown` directly specifies minimum number of mints (defaults to `1111`)
+    - `minimumMarketEth` is still supported but calculated internally as `minimumMintsForCountdown * 0.0000111 ETH`
+
+- Updated dependencies [c08ec3b3]
+  - @zoralabs/protocol-deployments@0.3.7
+
+## 0.11.4
+
+### Patch Changes
+
+- Updated dependencies [d6aa9a00]
+  - @zoralabs/protocol-deployments@0.3.6
+
+## 0.11.3
+
+### Patch Changes
+
+- 364d7906: Change DEFAULT_MINIMUM_MARKET_ETH to 0.0123321 eth (1,111 mints) to match default that is set on zora.co
+- e68ce881: Fix filtering for active markets
+- 4a29c2b9: Bump viem to 2.21.21
+- Updated dependencies [4a29c2b9]
+  - @zoralabs/protocol-deployments@0.3.5
+
+## 0.11.2
+
+### Patch Changes
+
+- 66f33bbb: fix: update secondary swap helper contract address
+- 8d7fdc02: For the functions `getToken` and `getTokensOfContract`, the returned `MintableReturn` type has been updated to provide more information about the primary mint status:
+
+  - Added `primaryMintActive` boolean to indicate if the primary mint is currently active.
+  - Added `primaryMintEnd` optional `bigint` to show the end time of the primary mint, if applicable.
+  - Added `secondaryMarketActive` boolean to indicate if the secondary market is currently active.
+  - Modified `prepareMint` to be conditionally available:
+    - When `primaryMintActive` is `true`, `prepareMint` is available as a `PrepareMint` function.
+    - When `primaryMintActive` is `false`, `prepareMint` is set to `undefined`.
+
+  This allows for developers to know if the primary mint is active or not, and if not, if they should buy on secondary.
+
+- Updated dependencies [66f33bbb]
+  - @zoralabs/protocol-deployments@0.3.4
+
+## 0.11.1
+
+### Patch Changes
+
+- Updated dependencies [b885539f]
+  - @zoralabs/protocol-deployments@0.3.3
+
+## 0.11.0
+
+### Minor Changes
+
+- 21247473: Added new functions `buy1155OnSecondary` and `sell1155OnSecondary` to the collector client in the protocol SDK. These functions enable users to buy and sell ERC1155 tokens on the secondary market. Key features include:
+
+  - Slippage protection for both buying and selling operations
+  - Detailed price breakdowns in wei, sparks, and USDC
+  - Support for specifying recipient addresses
+  - Error handling and simulation parameters
+
+## 0.10.0
+
+### Minor Changes
+
+- fc4a7f65: Support viewing and withdrawing protocol rewards and secondary royalties balances from the sdk, using the new methods `getRewardsBalances` and `withdrawRewards`.
+
+## 0.9.6
+
+### Patch Changes
+
+- 24520e9a: Fix sdk setSale for v2 params
+- Updated dependencies [247ebc86]
+- Updated dependencies [24520e9a]
+  - @zoralabs/protocol-deployments@0.3.2
+
+## 0.9.5
+
+### Patch Changes
+
+- 879a019a: - Fixed types, defaults, and queries for v2 timed sales
+
+## 0.9.4
+
+### Patch Changes
+
+- b9fcab20: Removed unneeded async in token setup
+- Updated dependencies [d221894d]
+- Updated dependencies [f94e5f03]
+- Updated dependencies [1b4d5ee7]
+  - @zoralabs/protocol-deployments@0.3.1
+
+## 0.9.3
+
+### Patch Changes
+
+- c75eb65b: Fix bug where for timed sale strategy, sales settings were not being set. For getting default erc20 name, get it from the contract name instead of fetching from ipfs.
+
+## 0.9.2
+
+### Patch Changes
+
+- 5f964909: To speed up performance for `create1155OnExistingContract`, use subgraph to get contract info and reduce quantity of rpc reads.
+
+## 0.9.1
+
+### Patch Changes
+
+- f40c4a8f: `create1155` and `create1155OnExistingContract` return an async `prepareMint` function, enabling to mint right after creating without needing to rely on the subgraph.
+
+## 0.9.0
+
+### Minor Changes
+
+- 8c50a99c: Add support for creating 1155s and collecting using the new ZoraTimedSaleStrategy. Default to using the new ZoraTimedSaleStrategy as a minter for new 1155s.
+
+### Patch Changes
+
+- 47c20f4d: - Added support for allowlist mint creation and collection
+  - For creating an erc20 mint, the parameter `type` must be set to `erc20Mint` on the `token.salesConfig` object
+
+## 0.8.0
+
+### Minor Changes
+
+- 5417f4dd: ProtocolSdk `create1155` can only be used for new contracts, and returns the correct deterministic contract address. A new function `create1155OnExistingContract` is added to support creating 1155 tokens on existing contracts
+
+## 0.7.6
+
+### Patch Changes
+
+- Updated dependencies [58f59243]
+- Updated dependencies [b5a7fac4]
+  - @zoralabs/protocol-deployments@0.3.0
+
+## 0.7.5
+
+### Patch Changes
+
+- 12909b5b: Renamed Mints to Sparks
+- Updated dependencies [12909b5b]
+- Updated dependencies [58914a0c]
+  - @zoralabs/protocol-deployments@0.2.2
+
+## 0.7.4
+
+### Patch Changes
+
+- 527aa518: Move from yarn to pnpm properly pinning deps packages
+- Updated dependencies [527aa518]
+  - @zoralabs/protocol-deployments@0.2.1
+
+## 0.7.3
+
+### Patch Changes
+
+- 898c84a7: [chore] Update dependencies and runtime scripts
+
+  This ensures jobs do not match binary names to make runs less ambigious and also that all deps are accounted for.
+
+- Updated dependencies [898c84a7]
+- Updated dependencies [0ec838a4]
+- Updated dependencies [e0b5074d]
+  - @zoralabs/protocol-deployments@0.2.0
+
+## 0.7.2
+
+### Patch Changes
+
+- cd5ac235: protocol sdk gets mint price from the default mint price entity on the subgraph
+
+## 0.7.1
+
+### Patch Changes
+
+- 5c009569: Added metadata builder methods to sdk. sdk's method createPremint returns collect/manage urls
+
+## 0.7.0
+
+### Minor Changes
+
+- f52f28f3: Added methods to Collector Client: getToken, getTokensOfContract
+
+## 0.6.0
+
+### Minor Changes
+
+- 8c23f05b: - new high-level sdks: `createCreatorClient` and `createCollectorClient`. `createPremintClient`, `createMintClient`, `create1155CreatorClient`, and `createPremintClient` are removed.
+  - external apis, such as the premint api can be stubbed/replaced/mocked.
+  - new function `mint` on the collector sdk that works with `1155`, `premint`, and `721`s.
+  - `create1155` now supports creating erc20, free, and paid mints. Setup actions now mimic what's on zora.co.
+
+### Patch Changes
+
+- b0f0fb74: premintClient - fix default mint duration to be unlimited (it was one week before)
+
 ## 0.5.17
 
 ### Patch Changes

@@ -1,5 +1,8 @@
 chainid: "7777777"
 network: zora-mainnet
+grafting:
+  base: "QmWZoNnJJQdzznpZcvFZvUMMJGq6zuD1tv5ovSfitNTyHT"
+  block: "21296000"
 factories1155:
   - address: "0x35ca784918bf11692708c1D530691704AAcEA95E"
     startBlock: "45420"
@@ -37,4 +40,20 @@ zoraMints:
 mintsManager:
   - address: "0x77777770ca269366c7208afcf36fe2c6f7f7608b"
     startBlock: "12827178"
+    version: "1"
+zoraSparks:
+  - address: "0x7777777b3eA6C126942BB14dD5C3C11D365C385D"
+    startBlock: "17060171"
+    version: "1"
+zoraTimedSaleStrategy:
+  - address: "0x777777722D078c97c6ad07d9f36801e653E356Ae"
+    startBlock: "17964312"
+    version: "1"
+comments:
+  - address: "0x7777777C2B3132e03a65721a41745C07170a5877"
+    startBlock: "21297000"
+    version: "1"
+cointagsFactory:
+  - address: "0x7777777BbD0b88aD5F3b5f4c89C6B60D74b9774F"
+    startBlock: "23933056"
     version: "1"

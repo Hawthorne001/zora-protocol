@@ -26,16 +26,15 @@ contract DeterministicProxyDeployerTest is DeterministicDeployerScript, Test {
     function create1155FactoryImpl() internal returns (address) {
         address mintFeeRecipient = makeAddr("mintFeeRecipient");
         address protocolRewards = makeAddr("protocolRewards");
-        address mintsAddress = makeAddr("mintsAddress");
 
         (address factoryImplDeployment, , ) = ZoraDeployerUtils.deployNew1155AndFactoryImpl({
             upgradeGateAddress: address(new UpgradeGate()),
             mintFeeRecipient: mintFeeRecipient,
             protocolRewards: protocolRewards,
-            mintsManagerAddress: mintsAddress,
             merkleMinter: IMinter1155(address(0)),
             redeemMinterFactory: IMinter1155(address(0)),
-            fixedPriceMinter: IMinter1155(address(0))
+            fixedPriceMinter: IMinter1155(address(0)),
+            timedSaleStrategy: address(0)
         });
 
         return factoryImplDeployment;
@@ -104,7 +103,7 @@ contract DeterministicProxyDeployerTest is DeterministicDeployerScript, Test {
         (address deployerAddress, uint256 deployerPrivateKey) = makeAddrAndKey("deployer");
 
         vm.assume(nonce > vm.getNonce(deployerAddress));
-        // we set the nonce to a random value, to prove this doesn't affect the deterministic addrss
+        // we set the nonce to a random value, to prove this doesn't affect the deterministic address
         vm.setNonce(deployerAddress, nonce);
 
         DeterministicProxyDeployer factoryProxyDeployer = _deployKnownZoraFactoryProxy(bytes32(0));

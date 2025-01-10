@@ -29,13 +29,15 @@ import {
   PremintConfigWithVersion,
   TokenCreationConfig,
 } from "@zoralabs/protocol-deployments";
-import { MintCosts } from "src/mint/mint-client";
 import { PublicClient } from "src/utils";
 import {
   ContractCreationConfigAndAddress,
   ContractCreationConfigOrAddress,
   ContractCreationConfigWithOptionalAdditionalAdmins,
 } from "./contract-types";
+import { IPremintGetter } from "./premint-api-client";
+import { isPremintConfigV1, isPremintConfigV2 } from "./conversions";
+import { MintCosts } from "src/mint/types";
 
 export const getPremintExecutorAddress = () =>
   zoraCreator1155PremintExecutorImplAddress[999] as Address;
@@ -271,8 +273,8 @@ export const supportsPremintVersion = async ({
 
 export async function getPremintCollectionAddress({
   publicClient,
-  collection,
-  collectionAddress,
+  contract: collection,
+  contractAddress: collectionAddress,
 }: {
   publicClient: PublicClient;
 } & ContractCreationConfigOrAddress): Promise<Address> {
@@ -355,24 +357,71 @@ export async function getPremintMintFee({
   }
 }
 
+type GetMintCostsParams = {
+  tokenContract: Address;
+  tokenPrice: bigint;
+  quantityToMint: bigint | number;
+  publicClient: PublicClient;
+};
+
 export async function getPremintMintCosts({
   publicClient,
   tokenContract,
   tokenPrice,
   quantityToMint,
-}: {
-  tokenContract: Address;
-  tokenPrice: bigint;
-  quantityToMint: bigint;
-  publicClient: PublicClient;
-}): Promise<MintCosts> {
+}: GetMintCostsParams): Promise<MintCosts> {
   const mintFee = await getPremintMintFee({ tokenContract, publicClient });
 
+  const quantityToMintBigInt = BigInt(quantityToMint);
+
   return {
-    mintFee: mintFee * quantityToMint,
-    tokenPurchaseCost: tokenPrice * quantityToMint,
-    totalCost: (mintFee + tokenPrice) * quantityToMint,
+    mintFee: mintFee * quantityToMintBigInt,
+    totalPurchaseCost: tokenPrice * quantityToMintBigInt,
+    totalCostEth: (mintFee + tokenPrice) * quantityToMintBigInt,
   };
+}
+export async function getPremintPricePerToken({
+  collection,
+  uid,
+  premintGetter,
+}: {
+  collection: Address;
+  uid: number;
+  premintGetter: IPremintGetter;
+}) {
+  const { premint: premintConfigWithVersion } = await premintGetter.get({
+    collectionAddress: collection,
+    uid,
+  });
+
+  if (
+    isPremintConfigV1(premintConfigWithVersion) ||
+    isPremintConfigV2(premintConfigWithVersion)
+  ) {
+    return premintConfigWithVersion.premintConfig.tokenConfig.pricePerToken;
+  }
+
+  throw new Error("Premint version not supported to get price");
+}
+
+export async function getPremintMintCostsWithUnknownTokenPrice({
+  premintGetter,
+  uid,
+  ...rest
+}: Omit<GetMintCostsParams, "tokenPrice"> & {
+  premintGetter: IPremintGetter;
+  uid: number;
+}) {
+  const pricePerToken = await getPremintPricePerToken({
+    uid,
+    premintGetter,
+    collection: rest.tokenContract,
+  });
+
+  return await getPremintMintCosts({
+    ...rest,
+    tokenPrice: pricePerToken,
+  });
 }
 
 export function makeMintRewardsRecipient({
@@ -416,13 +465,13 @@ export const toContractCreationConfigOrAddress = ({
 }) => {
   if (typeof collection !== "undefined") {
     return {
-      collection,
+      contract: collection,
     };
   }
 
   if (typeof collectionAddress !== "undefined") {
     return {
-      collectionAddress,
+      contractAddress: collectionAddress,
     };
   }
 

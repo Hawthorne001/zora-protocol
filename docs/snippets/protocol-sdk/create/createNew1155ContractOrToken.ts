@@ -1,34 +1,35 @@
-import { create1155CreatorClient } from "@zoralabs/protocol-sdk";
-import { publicClient, walletClient, chain } from "./config";
+import {
+  useAccount,
+  useChainId,
+  usePublicClient,
+  useWriteContract,
+} from "wagmi";
+import { createCreatorClient } from "@zoralabs/protocol-sdk";
 
-const creatorClient = create1155CreatorClient({ chain });
+// use wagmi hooks to get the chainId, publicClient, and account
+const chainId = useChainId();
+const publicClient = usePublicClient()!;
+const { address } = useAccount();
 
-const { request } = await creatorClient.createNew1155Token({
-  // by providing a contract creation config, the contract will be created
-  // if it does not exist at a deterministic address
+const creatorClient = createCreatorClient({ chainId, publicClient });
+
+const { parameters, contractAddress } = await creatorClient.create1155({
+  // the contract will be created at a deterministic address
   contract: {
     // contract name
     name: "testContract",
     // contract metadata uri
     uri: "ipfs://DUMMY/contract.json",
   },
-  // token metadata uri
-  tokenMetadataURI: "ipfs://DUMMY/token.json",
-  // accoun to execute the transaction (the creator)
-  account: "0x1234567890123456789012345678901234567890",
-  // how many tokens to mint to the creator upon token creation
-  mintToCreatorCount: 1,
+  token: {
+    tokenMetadataURI: "ipfs://DUMMY/token.json",
+  },
+  // account to execute the transaction (the creator)
+  account: address!,
 });
 
-// simulate the transaction
-const { request: simulateRequest } =
-  await publicClient.simulateContract(request);
+const { writeContract } = useWriteContract();
 
-// execute the transaction
-const hash = await walletClient.writeContract(simulateRequest);
-// wait for the response
-const receipt = await publicClient.waitForTransactionReceipt({ hash });
+writeContract(parameters);
 
-if (receipt.status !== "success") {
-  throw new Error("Transaction failed");
-}
+export { contractAddress };

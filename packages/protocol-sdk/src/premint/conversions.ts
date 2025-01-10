@@ -9,7 +9,10 @@ import {
   PremintConfigVersion,
   PremintConfigWithVersion,
 } from "@zoralabs/protocol-deployments";
-import { PremintSignatureGetResponse } from "./premint-api-client";
+import {
+  PremintSignatureGetOfCollectionResponse,
+  PremintSignatureGetResponse,
+} from "./premint-api-client";
 import { ContractCreationConfigOrAddress } from "./contract-types";
 
 export const convertCollectionFromApi = (
@@ -84,13 +87,34 @@ export const convertPremintFromApi = (
   }
 };
 
+export type PremintFromApi = ReturnType<typeof convertGetPremintApiResponse>;
+
 export const convertGetPremintApiResponse = (
   response: PremintSignatureGetResponse,
 ) => ({
-  ...convertPremintFromApi(response.premint),
   collection: convertCollectionFromApi(response.collection),
   collectionAddress: response.collection_address as Address,
   signature: response.signature as Hex,
+  signer: response.signer as Address,
+  premint: convertPremintFromApi(response.premint),
+});
+
+export type PremintCollectionFromApi = ReturnType<
+  typeof convertGetPremintOfCollectionApiResponse
+>;
+
+export const convertGetPremintOfCollectionApiResponse = (
+  response: PremintSignatureGetOfCollectionResponse,
+) => ({
+  collection: convertCollectionFromApi({
+    contractAdmin: response.contract_admin,
+    contractName: response.contract_name,
+    contractURI: response.contract_uri,
+  }),
+  premints: response.premints.map((premint) => ({
+    premint: convertPremintFromApi(premint),
+    signature: premint.signature as Hex,
+  })),
 });
 
 const encodePremintV1ForAPI = ({
@@ -150,8 +174,8 @@ export type PremintSignatureResponse =
  * @returns
  */
 export const encodePostSignatureInput = <T extends PremintConfigVersion>({
-  collection,
-  collectionAddress,
+  contract: collection,
+  contractAddress: collectionAddress,
   premintConfigVersion,
   premintConfig,
   signature,
@@ -172,3 +196,13 @@ export const encodePostSignatureInput = <T extends PremintConfigVersion>({
   collection_address: collectionAddress,
   chain_name: networkConfigByChain[chainId]!.zoraBackendChainName,
 });
+
+export const isPremintConfigV1 = (
+  premintConfigAndVersion: PremintConfigAndVersion,
+): premintConfigAndVersion is PremintConfigWithVersion<PremintConfigVersion.V1> =>
+  premintConfigAndVersion.premintConfigVersion === PremintConfigVersion.V1;
+
+export const isPremintConfigV2 = (
+  premintConfigAndVersion: PremintConfigAndVersion,
+): premintConfigAndVersion is PremintConfigWithVersion<PremintConfigVersion.V2> =>
+  premintConfigAndVersion.premintConfigVersion === PremintConfigVersion.V2;

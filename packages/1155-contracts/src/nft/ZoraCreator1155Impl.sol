@@ -6,7 +6,7 @@ import {ReentrancyGuardUpgradeable} from "@zoralabs/openzeppelin-contracts-upgra
 import {UUPSUpgradeable} from "@zoralabs/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {IERC1155MetadataURIUpgradeable} from "@zoralabs/openzeppelin-contracts-upgradeable/contracts/interfaces/IERC1155MetadataURIUpgradeable.sol";
 import {IERC165Upgradeable} from "@zoralabs/openzeppelin-contracts-upgradeable/contracts/interfaces/IERC165Upgradeable.sol";
-import {IProtocolRewards} from "@zoralabs/protocol-rewards/src/interfaces/IProtocolRewards.sol";
+import {IProtocolRewards} from "@zoralabs/shared-contracts/interfaces/IProtocolRewards.sol";
 import {RewardSplits, RewardSplitsLib} from "@zoralabs/protocol-rewards/src/abstract/RewardSplits.sol";
 import {ERC1155RewardsStorageV1} from "@zoralabs/protocol-rewards/src/abstract/ERC1155/ERC1155RewardsStorageV1.sol";
 import {ReentrancyGuardUpgradeable} from "@zoralabs/openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuardUpgradeable.sol";
@@ -35,14 +35,12 @@ import {IZoraCreator1155Errors} from "../interfaces/IZoraCreator1155Errors.sol";
 import {ERC1155DelegationStorageV1} from "../delegation/ERC1155DelegationStorageV1.sol";
 import {IZoraCreator1155DelegatedCreation, ISupportsAABasedDelegatedTokenCreation, IHasSupportedPremintSignatureVersions} from "../interfaces/IZoraCreator1155DelegatedCreation.sol";
 import {IMintWithRewardsRecipients} from "../interfaces/IMintWithRewardsRecipients.sol";
+import {IHasContractName} from "../interfaces/IContractMetadata.sol";
 import {ZoraCreator1155Attribution, DecodedCreatorAttribution, PremintTokenSetup, PremintConfigV2, DelegatedTokenCreation, DelegatedTokenSetup} from "../delegation/ZoraCreator1155Attribution.sol";
 import {ContractCreationConfig, PremintConfig} from "@zoralabs/shared-contracts/entities/Premint.sol";
-import {IZoraMintsMinterManager} from "@zoralabs/mints-contracts/src/interfaces/IZoraMintsMinterManager.sol";
-import {IZoraMints1155} from "@zoralabs/mints-contracts/src/interfaces/IZoraMints1155.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
-import {IMintWithMints} from "@zoralabs/mints-contracts/src/IMintWithMints.sol";
-import {Redemption} from "@zoralabs/mints-contracts/src/ZoraMintsTypes.sol";
+import {IReduceSupply} from "@zoralabs/shared-contracts/interfaces/IReduceSupply.sol";
 
 /// Imagine. Mint. Enjoy.
 /// @title ZoraCreator1155Impl
@@ -64,6 +62,7 @@ contract ZoraCreator1155Impl is
     RewardSplits,
     ERC1155RewardsStorageV1,
     IERC7572,
+    IHasContractName,
     ERC1155DelegationStorageV1
 {
     /// @notice This user role allows for any action to be performed
@@ -79,20 +78,28 @@ contract ZoraCreator1155Impl is
     uint256 public constant PERMISSION_BIT_FUNDS_MANAGER = 2 ** 5;
     /// @notice Factory contract
     IUpgradeGate internal immutable upgradeGate;
-    /// @notice The mint token contract
-    IZoraMintsMinterManager internal immutable mintsManager;
+    /// @notice Timed sale strategy allowed to reduce supply
+    address internal immutable timedSaleStrategy;
 
-    bytes4 constant ON_ERC1155_RECEIVED_HASH = IERC1155Receiver.onERC1155Received.selector;
-    bytes4 constant ON_ERC1155_BATCH_RECEIVED_HASH = IERC1155Receiver.onERC1155BatchReceived.selector;
+    uint256 constant MINT_FEE = 0.000111 ether;
 
+    /// @notice This is the immutable constructor for defining onchain addresses that is updated on contract updates
+    /// @param _mintFeeRecipient Recipient for the mint fee (used in rewards) (cannot be 0)
+    /// @param _upgradeGate Address to register the upgrade gate for these contracts (cannot be 0)
+    /// @param _protocolRewards Protocol rewards contract ddress (cannot be 0)
+    /// @param _timedSaleStrategy Timed sale strategy – used to control access to reduceSupply, can be 0 for when this contract is not supported
     constructor(
         address _mintFeeRecipient,
         address _upgradeGate,
         address _protocolRewards,
-        address _mints
+        address _timedSaleStrategy
     ) RewardSplits(_protocolRewards, _mintFeeRecipient) initializer {
+        if (address(_upgradeGate) == address(0)) {
+            revert INVALID_ADDRESS_ZERO();
+        }
+
         upgradeGate = IUpgradeGate(_upgradeGate);
-        mintsManager = IZoraMintsMinterManager(_mints);
+        timedSaleStrategy = _timedSaleStrategy;
     }
 
     /// @notice Initializes the contract
@@ -108,7 +115,7 @@ contract ZoraCreator1155Impl is
         address payable defaultAdmin,
         bytes[] calldata setupActions
     ) external nonReentrant initializer {
-        // We are not initalizing the OZ 1155 implementation
+        // We are not initializing the OZ 1155 implementation
         // to save contract storage space and runtime
         // since the only thing affected here is the uri.
         // __ERC1155_init("");
@@ -228,14 +235,6 @@ contract ZoraCreator1155Impl is
         }
     }
 
-    modifier onlyMints() {
-        if (msg.sender != address(mintsManager.zoraMints1155())) {
-            revert OnlyTransfersFromZoraMints();
-        }
-
-        _;
-    }
-
     /// @notice Modifier checking if the user is an admin or has a role
     /// @dev This reverts if the msg.sender is not an admin for the given token id or contract
     /// @param tokenId tokenId to check
@@ -250,15 +249,6 @@ contract ZoraCreator1155Impl is
     /// @param tokenId tokenId to check
     modifier onlyAdmin(uint256 tokenId) {
         _requireAdmin(msg.sender, tokenId);
-        _;
-    }
-
-    /// @notice Modifier checking if the requested quantity of tokens can be minted for the tokenId
-    /// @dev This reverts if the number that can be minted is exceeded
-    /// @param tokenId token id to check available allowed quantity
-    /// @param quantity requested to be minted
-    modifier canMintQuantity(uint256 tokenId, uint256 quantity) {
-        _requireCanMintQuantity(tokenId, quantity);
         _;
     }
 
@@ -323,6 +313,27 @@ contract ZoraCreator1155Impl is
         emit SetupNewToken(tokenId, user, newURI, maxSupply);
 
         return tokenId;
+    }
+
+    /// @notice Allow a minter to reduce the max supply of a token.
+    /// @dev This allows enforcing that no more new tokens can be minted.
+    /// @param tokenId The token id to reduce the supply for
+    /// @param newMaxSupply The new max supply
+    function reduceSupply(uint256 tokenId, uint256 newMaxSupply) external {
+        if (msg.sender != timedSaleStrategy) {
+            revert OnlyAllowedForTimedSaleStrategy();
+        }
+
+        if (!_hasAnyPermission(tokenId, msg.sender, PERMISSION_BIT_MINTER)) {
+            revert OnlyAllowedForRegisteredMinter();
+        }
+
+        TokenData storage tokenData = tokens[tokenId];
+        if (newMaxSupply < tokenData.totalMinted) {
+            revert CannotReduceMaxSupplyBelowMinted();
+        }
+
+        tokenData.maxSupply = newMaxSupply;
     }
 
     /// @notice Update the token URI for a token
@@ -412,25 +423,6 @@ contract ZoraCreator1155Impl is
     ) external nonReentrant onlyAdminOrRole(tokenId, PERMISSION_BIT_MINTER) {
         // Mint the specified tokens
         _mint(recipient, tokenId, quantity, data);
-    }
-
-    /// @custom:deprecated mintWithRewards has been deprecated use mint instead
-    /// @notice Mint tokens and payout rewards given a minter contract, minter arguments, and a mint referral
-    /// @param minter The minter contract to use
-    /// @param tokenId The token ID to mint
-    /// @param quantity The quantity of tokens to mint
-    /// @param minterArguments The arguments to pass to the minter
-    /// @param mintReferral The referrer of the mint
-    function mintWithRewards(
-        IMinter1155 minter,
-        uint256 tokenId,
-        uint256 quantity,
-        bytes calldata minterArguments,
-        address mintReferral
-    ) external payable nonReentrant {
-        address[] memory rewardsRecipients = new address[](1);
-        rewardsRecipients[0] = mintReferral;
-        return _mint(minter, tokenId, quantity, rewardsRecipients, minterArguments);
     }
 
     /// @notice Mint tokens and payout rewards given a minter contract, minter arguments, and rewards arguments
@@ -534,7 +526,7 @@ contract ZoraCreator1155Impl is
         // Require admin from the minter to mint
         _requireAdminOrRole(address(minter), tokenId, PERMISSION_BIT_MINTER);
 
-        uint256 totalReward = mintsManager.getEthPrice() * quantity;
+        uint256 totalReward = MINT_FEE * quantity;
 
         _mintAndHandleRewards(minter, rewardsRecipients, msg.value, totalReward, tokenId, quantity, minterArguments);
     }
@@ -549,50 +541,8 @@ contract ZoraCreator1155Impl is
         }
     }
 
-    /// @notice Mint tokens and payout rewards given a minter contract, minter arguments, and rewards arguments,
-    /// while MINTs are redeemed to pay for the mint fee, instead of paying with ETH directly.
-    /// The MINTs must have been approved to be transferred to this contract from the msg.sender before calling this function.
-    /// Value sent is used for paid mints, if this is a paid mint
-    /// @param mintTokenIds The MINT token IDs that are to be redeemed
-    /// @param quantities The quantities of each MINT token id to redeem
-    /// @param minter The minter contract to use
-    /// @param tokenId The token ID to mint
-    /// @param rewardsRecipients The addresses of rewards arguments - rewardsRecipients[0] = mintReferral, rewardsRecipients[1] = platformReferral
-    /// @param minterArguments The arguments to pass to the minter
-    /// @param quantityMinted The total quantity of tokens minted
-    function mintWithMints(
-        uint256[] calldata mintTokenIds,
-        uint256[] calldata quantities,
-        IMinter1155 minter,
-        uint256 tokenId,
-        address[] memory rewardsRecipients,
-        bytes calldata minterArguments
-    ) external payable returns (uint256 quantityMinted) {
-        // Require admin from the minter to mint
-        _requireAdminOrRole(address(minter), tokenId, PERMISSION_BIT_MINTER);
-
-        quantityMinted = _getTotalMintsQuantity(mintTokenIds, quantities);
-        IZoraMints1155 mints = mintsManager.zoraMints1155();
-        mints.safeBatchTransferFrom(msg.sender, address(this), mintTokenIds, quantities, "");
-        Redemption[] memory redemptions = mints.redeemBatch(mintTokenIds, quantities, address(this));
-
-        uint256 totalEthReward = _getEthRedemptionTotal(redemptions);
-
-        _mintAndHandleRewards(minter, rewardsRecipients, msg.value + totalEthReward, totalEthReward, tokenId, quantityMinted, minterArguments);
-    }
-
-    function _getEthRedemptionTotal(Redemption[] memory redemptions) private pure returns (uint256 totalEth) {
-        for (uint256 i = 0; i < redemptions.length; i++) {
-            if (redemptions[i].tokenAddress != address(0)) {
-                revert NonEthRedemption();
-            }
-
-            totalEth += redemptions[i].valueRedeemed;
-        }
-    }
-
     function mintFee() external view returns (uint256) {
-        return mintsManager.getEthPrice();
+        return MINT_FEE;
     }
 
     /// @notice Get the creator reward recipient address for a specific token.
@@ -710,10 +660,11 @@ contract ZoraCreator1155Impl is
             super.supportsInterface(interfaceId) ||
             interfaceId == type(IZoraCreator1155).interfaceId ||
             ERC1155Upgradeable.supportsInterface(interfaceId) ||
+            interfaceId == type(IHasContractName).interfaceId ||
             interfaceId == type(IHasSupportedPremintSignatureVersions).interfaceId ||
             interfaceId == type(ISupportsAABasedDelegatedTokenCreation).interfaceId ||
             interfaceId == type(IMintWithRewardsRecipients).interfaceId ||
-            interfaceId == type(IMintWithMints).interfaceId;
+            interfaceId == type(IReduceSupply).interfaceId;
     }
 
     /// Generic 1155 function overrides ///
@@ -865,6 +816,10 @@ contract ZoraCreator1155Impl is
         }
     }
 
+    function contractName() external view returns (string memory) {
+        return "Zora Creator 1155";
+    }
+
     /// @notice Returns the current implementation address
     function implementation() external view returns (address) {
         return _getImplementation();
@@ -932,14 +887,5 @@ contract ZoraCreator1155Impl is
 
         // grant the token creator as admin of the newly created token
         _addPermission(newTokenId, creator, PERMISSION_BIT_ADMIN);
-    }
-
-    // /// Allows receiving ERC1155 tokens
-    function onERC1155Received(address, address, uint256, uint256, bytes calldata) external view onlyMints returns (bytes4) {
-        return ON_ERC1155_RECEIVED_HASH;
-    }
-
-    function onERC1155BatchReceived(address, address, uint256[] calldata, uint256[] calldata, bytes calldata) external view onlyMints returns (bytes4) {
-        return ON_ERC1155_BATCH_RECEIVED_HASH;
     }
 }

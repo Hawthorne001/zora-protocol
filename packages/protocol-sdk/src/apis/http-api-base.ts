@@ -1,3 +1,5 @@
+import { retriesGeneric } from "src/retries";
+
 export class BadResponseError<T = any> extends Error {
   status: number;
   json: T;
@@ -7,12 +9,6 @@ export class BadResponseError<T = any> extends Error {
     this.status = status;
     this.json = json;
   }
-}
-
-async function wait(delayMs: number) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, delayMs);
-  });
 }
 
 /**
@@ -49,6 +45,15 @@ export const get = async <T>(url: string) => {
  * @throws Error when HTTP response fails
  */
 export const post = async <T>(url: string, data: any) => {
+  const controller = new AbortController();
+  const { signal } = controller;
+
+  // 30 minute timeout:
+  const timeout = 30 * 60 * 1000;
+
+  // Set a timeout to automatically abort the request
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -56,7 +61,10 @@ export const post = async <T>(url: string, data: any) => {
       accept: "application/json",
     },
     body: JSON.stringify(data),
+    signal,
   });
+
+  clearTimeout(timeoutId);
   if (response.status !== 200) {
     let json;
     try {
@@ -71,25 +79,22 @@ export const post = async <T>(url: string, data: any) => {
   return (await response.json()) as T;
 };
 
+const defaultShouldRetry = (err: any) => {
+  return err instanceof BadResponseError && err.status >= 500;
+};
+
 export const retries = async <T>(
   tryFn: () => T,
   maxTries: number = 3,
-  atTry: number = 1,
   linearBackoffMS: number = 200,
+  shouldRetry: (err: any) => boolean = defaultShouldRetry,
 ): Promise<T> => {
-  try {
-    return await tryFn();
-  } catch (err: any) {
-    if (err instanceof BadResponseError) {
-      if (err.status >= 500) {
-        if (atTry <= maxTries) {
-          await wait(atTry * linearBackoffMS);
-          return await retries(tryFn, maxTries, atTry + 1);
-        }
-      }
-    }
-    throw err;
-  }
+  return retriesGeneric({
+    tryFn,
+    maxTries,
+    linearBackoffMS,
+    shouldRetryOnError: shouldRetry,
+  });
 };
 
 export interface IHttpClient {

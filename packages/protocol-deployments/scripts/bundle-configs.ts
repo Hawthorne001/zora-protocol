@@ -107,15 +107,15 @@ async function bundleChainConfigs() {
   await mergeAndSaveConfigs({
     configs: [
       {
-        folder: "../mints-deployments/chainConfigs",
+        folder: "../shared-contracts/chainConfigs",
         configType: "chainConfigs",
       },
       {
-        folder: "../mints-deployments/addresses",
+        folder: "../sparks/addresses",
         configType: "addresses",
       },
     ],
-    packageName: "mints",
+    packageName: "sparks",
   });
 }
 
