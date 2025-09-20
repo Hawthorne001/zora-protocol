@@ -1,5 +1,11 @@
 # @zoralabs/protocol-deployments
 
+## 0.6.3
+
+### Patch Changes
+
+- 131c719: Deployed v2.2.0 of coins to Base
+
 ## 0.6.2
 
 ### Patch Changes

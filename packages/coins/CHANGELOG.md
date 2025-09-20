@@ -1,5 +1,15 @@
 # @zoralabs/coins
 
+## 2.2.2
+
+### Patch Changes
+
+- 44a179b: Flatten hooks into single hook implementation
+
+  Consolidates multiple hook contracts into a single unified hook for simplified architecture and better maintainability.
+
+- 44a179b: Ignore collecting from liquidity positions with empty fee growth
+
 ## 2.2.1
 
 ### Patch Changes
@@ -21,7 +31,7 @@
 
   | Recipient         | Before (3% total fee) | After (1% total fee) |
   | ----------------- | --------------------- | -------------------- |
-  |                   | % of Fee        | % of Fee |
+  |                   | % of Fee              | % of Fee             |
   | Creator           | 33.33%                | 50%                  |
   | Platform Referral | 10%                   | 20%                  |
   | Trade Referral    | 10%                   | 4%                   |
@@ -33,7 +43,7 @@
 
   | Recipient         | Before (3% total fee) | After (1% total fee) |
   | ----------------- | --------------------- | -------------------- |
-  |                   | % of Fee        | % of Fee |
+  |                   | % of Fee              | % of Fee             |
   | Creator           | 33.33%                | 50%                  |
   | Platform Referral | -                     | 20%                  |
   | Trade Referral    | -                     | 4%                   |
