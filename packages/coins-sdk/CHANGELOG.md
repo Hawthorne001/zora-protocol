@@ -1,5 +1,11 @@
 # @zoralabs/coins-sdk
 
+## 0.3.4
+
+### Patch Changes
+
+- 9f74986: Add new leaderboard and featured creators queries
+
 ## 0.3.3
 
 ### Patch Changes
