@@ -1,5 +1,13 @@
 # @zoralabs/coins
 
+## 2.4.0
+
+### Minor Changes
+
+- 09fb252: Make trusted senders in coin hooks modifiable
+
+  Trusted message senders can now be added or removed after hook deployment instead of being hardcoded at deployment time.
+
 ## 2.3.1
 
 ### Patch Changes
